@@ -48,7 +48,7 @@ class JsonField(six.with_metaclass(models.SubfieldBase, models.Field)):
 
     def db_type(self, connection):
         if get_version(connection) < 90200:
-            raise RuntimeError("django_pgjson does not supports postgresql version < 9.2")
+            raise RuntimeError("djsonb does not supports postgresql version < 9.2")
         return "json"
 
     def value_to_string(self, obj):
@@ -91,7 +91,7 @@ class JsonField(six.with_metaclass(models.SubfieldBase, models.Field)):
 class JsonBField(JsonField):
     def db_type(self, connection):
         if get_version(connection) < 90400:
-            raise RuntimeError("django_pgjson: PostgreSQL >= 9.4 is required for jsonb support.")
+            raise RuntimeError("djsonb: PostgreSQL >= 9.4 is required for jsonb support.")
         return "jsonb"
 
     def get_prep_lookup(self, lookup_type, value, prepared=False):
@@ -144,7 +144,7 @@ try:
             "blank": ["blank", {"default": True}],
             "null": ["null", {"default": False}],
         },
-    )], (r"^django_pgjson\.fields\.JsonField",))
+    )], (r"^djsonb\.fields\.JsonField",))
 
     add_introspection_rules([(
         (JsonBField,),
@@ -153,7 +153,7 @@ try:
             "blank": ["blank", {"default": True}],
             "null": ["null", {"default": False}],
         },
-    )], (r"^django_pgjson\.fields\.JsonBField",))
+    )], (r"^djsonb\.fields\.JsonBField",))
 
 except ImportError:
     pass

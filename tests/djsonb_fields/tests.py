@@ -5,7 +5,7 @@ from django.test import TestCase
 
 from .models import JsonBModel
 
-from django_pgjson.lookups import (FilterTree,
+from djsonb.lookups import (FilterTree,
                                    traversal_string,
                                    containment_filter)
 
