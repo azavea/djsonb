@@ -15,6 +15,6 @@ if __name__ == '__main__':
     args.insert(1, 'test')
 
     if len(args) == 2:
-        args.insert(2, 'pg_json_fields')
+        args.insert(2, 'djsonb_fields')
 
     execute_from_command_line(args)

@@ -31,13 +31,13 @@ class FilterTree:
 
     def get_rules(self, obj, current_path=[]):
         """Recursively crawl a dict looking for filtering rules"""
-        # If node is a rule return its location and its details
-        if self.is_rule(obj):
-            return [([self.field] + current_path, obj)]
-
         # If node isn't a rule or dictionary
         if type(obj) != dict:
             return []
+
+        # If node is a rule return its location and its details
+        if self.is_rule(obj):
+            return [([self.field] + current_path, obj)]
 
         rules = []
         for path, val in obj.items():
