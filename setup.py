@@ -10,7 +10,7 @@ PostgreSQL json field support for Django.
 
 setup(
     name="djsonb",
-    version="0.1.0",
+    version="0.1.1",
     url="https://github.com/azavea/djsonb",
     license="BSD",
     platforms=["OS Independent"],
