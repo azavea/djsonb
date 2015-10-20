@@ -6,8 +6,8 @@ from django.test import TestCase
 from .models import JsonBModel
 
 from djsonb.lookups import (FilterTree,
-                                   traversal_string,
-                                   containment_filter)
+                            traversal_string,
+                            containment_filter)
 
 class JsonBFilterTests(TestCase):
     def setUp(self):
@@ -86,10 +86,12 @@ class JsonBFilterTests(TestCase):
         JsonBModel.objects.create(data={'a': {'b': {'c': 1, 'd': 25}}})
         JsonBModel.objects.create(data={'a': {'b': {'c': 2000, 'd': 9000}}})
 
-        filt1 = {'a': {'b': {
-                            'c': {'_rule_type': 'intrange', 'min': 1, 'max': 5},
-                            'd': {'_rule_type': 'containment',
-                                  'contains': [0,25,92,23,44,123,21,32,12,32,42,12,23123,213,23,421,123,12]}}}}
+        filt1 = {'a': {'b': {'c': {'_rule_type': 'intrange',
+                                   'min': 1, 'max': 5},
+                             'd': {'_rule_type': 'containment',
+                                   'contains': [0, 25, 92, 23, 44, 123, 21, 32,
+                                                12, 32, 42, 12, 23123, 213, 23,
+                                                421, 123, 12]}}}}
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
 
@@ -102,3 +104,36 @@ class JsonBFilterTests(TestCase):
         filt3['a']['b']['c']['max'] = 9000
         query3 = JsonBModel.objects.filter(data__jsonb=filt3)
         self.assertEqual(query3.count(), 2)
+
+    def test_multiple_containment_filters(self):
+        JsonBModel.objects.create(data={'a': {'b': {'c': "zog", 'd': "zog"}}})
+        JsonBModel.objects.create(data={'a': {'b': {'c': "zog", 'd': 9000}}})
+
+        filt1 = {'a': {'b': {'c': {'_rule_type': 'containment',
+                                   'contains': ['zog']},
+                             'd': {'_rule_type': 'containment',
+                                   'contains': ['zog']}}}}
+
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 1)
+
+        filt2 = filt1.copy()
+        del filt2['a']['b']['d']
+        query2 = JsonBModel.objects.filter(data__jsonb=filt2)
+        self.assertEqual(query2.count(), 2)
+
+    def test_multiple_containment_multiple_filters(self):
+        """Test for filters on data which has a list of objects to check"""
+        JsonBModel.objects.create(data={'a': {'b': [{'c': "zog"}, {'c': "dog"}]}})
+        JsonBModel.objects.create(data={'a': {'b': [{'c': "zog"}, {'c': 9000}]}})
+
+        filt1 = {'a': {'b': {'c': {'_rule_type': 'containment_multiple',
+                                   'contains': ['dog']}}}}
+
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 1)
+
+        filt2 = {'a': {'b': {'c': {'_rule_type': 'containment_multiple',
+                                   'contains': ['zog', 'dog']}}}}
+        query2 = JsonBModel.objects.filter(data__jsonb=filt2)
+        self.assertEqual(query2.count(), 2)

@@ -22,7 +22,7 @@ class FilterTree:
     def is_rule(self, obj):
         """Check for bottoming out the recursion in `get_rules`"""
         if '_rule_type' in obj:
-            if obj['_rule_type'] not in ['intrange', 'containment']:
+            if obj['_rule_type'] not in ['intrange', 'containment', 'containment_multiple']:
                 return False
             else:
                 return True
@@ -61,6 +61,8 @@ class FilterTree:
                 rule_specs.append(intrange_filter(rule[0], rule[1]))
             if rule_type == 'containment':
                 rule_specs.append(containment_filter(rule[0], rule[1]))
+            if rule_type == 'containment_multiple':
+                rule_specs.append(multiple_containment_filter(rule[0], rule[1]))
         rule_strings = [rule[0] for rule in rule_specs]
         # flatten the rule_paths
         rule_paths_test = [rule[1] for rule in rule_specs]
@@ -88,10 +90,40 @@ def reconstruct_object(path):
         return '{{%s: {recons}}}'.format(recons=reconstruct_object(path[1:]))
 
 
+def reconstruct_object_multiple(path):
+    """Reonstruct the object from root to leaf, recursively"""
+    if len(path) == 0:
+        return '%s'
+    elif len(path) == 2:
+        return '{{%s: [{recons}]}}'.format(recons=reconstruct_object_multiple(path[1:]))
+    else:
+        return '{{%s: {recons}}}'.format(recons=reconstruct_object_multiple(path[1:]))
+
+
 # Filters
 def containment_filter(path, range_rule):
     """Filter for objects that contain the specified value at some location"""
     template = reconstruct_object(path[1:])
+    has_containment = 'contains' in range_rule
+    abstract_contains_str = path[0] + " @> %s"
+
+    if has_containment:
+        all_contained = range_rule.get('contains')
+
+    contains_params = []
+    json_path = [json.dumps(x) for x in path[1:]]
+    for contained in all_contained:
+        interpolants = tuple(json_path + [json.dumps(contained)])
+        contains_params.append(template % interpolants)
+
+    contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
+
+    return ('(' + contains_str + ')', contains_params)
+
+
+def multiple_containment_filter(path, range_rule):
+    """Filter for objects that contain the specified value in any of the objects in a given list"""
+    template = reconstruct_object_multiple(path[1:])
     has_containment = 'contains' in range_rule
     abstract_contains_str = path[0] + " @> %s"
 
