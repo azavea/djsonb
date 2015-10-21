@@ -83,20 +83,26 @@ def traversal_string(path):
 
 
 def reconstruct_object(path):
-    """Reonstruct the object from root to leaf, recursively"""
+    """Reconstruct the object from root to leaf, recursively"""
     if len(path) == 0:
         return '%s'
     else:
+        # The indexed query on `path` below is the means by which we recurse
+        #  Every iteration pushes it closer to a length of 0 and, thus, bottoming out
         return '{{%s: {recons}}}'.format(recons=reconstruct_object(path[1:]))
 
 
 def reconstruct_object_multiple(path):
-    """Reonstruct the object from root to leaf, recursively"""
+    """Reconstruct the object from root to leaf, recursively"""
     if len(path) == 0:
         return '%s'
     elif len(path) == 2:
         return '{{%s: [{recons}]}}'.format(recons=reconstruct_object_multiple(path[1:]))
     else:
+        # The indexed query on `path` below is the means by which we recurse
+        #  Every iteration pushes it closer to a length of 0 and, thus, bottoming out
+        #  This function differs from the singular reconstruction in that the final object
+        #  gets wrapped in a list (when length is 2, there should be a key and a value left)
         return '{{%s: {recons}}}'.format(recons=reconstruct_object_multiple(path[1:]))
 
 
