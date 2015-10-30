@@ -7,7 +7,8 @@ from .models import JsonBModel
 
 from djsonb.lookups import (FilterTree,
                             traversal_string,
-                            containment_filter)
+                            containment_filter,
+                            intrange_filter)
 
 class JsonBFilterTests(TestCase):
     def setUp(self):
@@ -137,3 +138,15 @@ class JsonBFilterTests(TestCase):
                                    'contains': ['zog', 'dog']}}}}
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
         self.assertEqual(query2.count(), 2)
+
+    def test_intrange_filter_missing_numbers(self):
+        """Test to ensure that missing min and max doesn't add filters"""
+        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'min': None}),
+                         ('', []))
+        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'min': 1}),
+                         (u'((a->%s->>%s)::int >= %s)', [u'a', u'b', u'c', 1]))
+        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'max': 1}),
+                         (u'((a->%s->>%s)::int <= %s)', [u'a', u'b', u'c', 1]))
+        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'max': 1, 'min': None}),
+                         (u'((a->%s->>%s)::int <= %s)', [u'a', u'b', u'c', 1]))
+
