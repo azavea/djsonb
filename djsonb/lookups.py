@@ -65,8 +65,8 @@ class FilterTree:
                 rule_specs.append(multiple_containment_filter(rule[0], rule[1]))
         rule_strings = [rule[0] for rule in rule_specs]
         # flatten the rule_paths
-        rule_paths_test = [rule[1] for rule in rule_specs]
-        rule_paths = [item for sublist in rule_paths_test
+        rule_paths_first = [rule[1] for rule in rule_specs]
+        rule_paths = [item for sublist in rule_paths_first
                       for item in sublist]
         outcome = (' AND '.join(rule_strings), tuple(rule_paths))
         return outcome
@@ -150,19 +150,21 @@ def multiple_containment_filter(path, range_rule):
 def intrange_filter(path, range_rule):
     """Filter for numbers that match boundaries provided by a rule"""
     travInt = "(" + traversal_string(path) + ")::int"
-    has_min = 'min' in range_rule
-    has_max = 'max' in range_rule
+    has_min = 'min' in range_rule and range_rule['min'] is not None
+    has_max = 'max' in range_rule and range_rule['max'] is not None
 
     if has_min:
         minimum = range_rule['min']
-        less_than = ("{traversal_int} <= %s"
+        more_than = ("{traversal_int} >= %s"
                      .format(traversal_int=travInt))
 
     if has_max:
         maximum = range_rule['max']
-        more_than = ("{traversal_int} >= %s"
+        less_than = ("{traversal_int} <= %s"
                      .format(traversal_int=travInt))
 
+    if not has_min and not has_max:
+        return ('', [])
     if has_min and not has_max:
         return ('(' + more_than + ')', path + [minimum])
     elif has_max and not has_min:
