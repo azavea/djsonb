@@ -57,7 +57,7 @@ class FilterTree:
                 pass
             rule_type = rule[1]['_rule_type']
 
-            if rule_type == 'intrange' and (type(rule[1]['min']) == int or type(rule[1]['max']) == int):
+            if rule_type == 'intrange':
                 rule_specs.append(intrange_filter(rule[0], rule[1]))
             if rule_type == 'containment':
                 rule_specs.append(containment_filter(rule[0], rule[1]))
@@ -65,8 +65,8 @@ class FilterTree:
                 rule_specs.append(multiple_containment_filter(rule[0], rule[1]))
         rule_strings = [rule[0] for rule in rule_specs]
         # flatten the rule_paths
-        rule_paths_test = [rule[1] for rule in rule_specs]
-        rule_paths = [item for sublist in rule_paths_test
+        rule_paths_first = [rule[1] for rule in rule_specs]
+        rule_paths = [item for sublist in rule_paths_first
                       for item in sublist]
         outcome = (' AND '.join(rule_strings), tuple(rule_paths))
         return outcome
