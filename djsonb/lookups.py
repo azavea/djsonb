@@ -166,9 +166,9 @@ def intrange_filter(path, range_rule):
     if not has_min and not has_max:
         return ('', [])
     if has_min and not has_max:
-        return ('(' + more_than + ')', path + [minimum])
+        return ('(' + more_than + ')', path[1:] + [minimum])
     elif has_max and not has_min:
-        return ('(' + less_than + ')', path + [maximum])
+        return ('(' + less_than + ')', path[1:] + [maximum])
     elif has_max and has_min:
         min_and_max = '(' + less_than + ' AND ' + more_than + ')'
         return (min_and_max, path[1:] + [maximum] + path[1:] + [minimum])

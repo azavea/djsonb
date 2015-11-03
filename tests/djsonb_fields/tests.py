@@ -144,9 +144,9 @@ class JsonBFilterTests(TestCase):
         self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'min': None}),
                          ('', []))
         self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'min': 1}),
-                         (u'((a->%s->>%s)::int >= %s)', [u'a', u'b', u'c', 1]))
+                         (u'((a->%s->>%s)::int >= %s)', [u'b', u'c', 1]))
         self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'max': 1}),
-                         (u'((a->%s->>%s)::int <= %s)', [u'a', u'b', u'c', 1]))
+                         (u'((a->%s->>%s)::int <= %s)', [u'b', u'c', 1]))
         self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'max': 1, 'min': None}),
-                         (u'((a->%s->>%s)::int <= %s)', [u'a', u'b', u'c', 1]))
+                         (u'((a->%s->>%s)::int <= %s)', [u'b', u'c', 1]))
 
