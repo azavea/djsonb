@@ -13,21 +13,21 @@ class FilterTree:
     Something.objects.filter(<jsonb_field>__jsonb=<filter_specification>)
 
     Check out the tests for some real examples"""
-
     def __init__(self, tree, field):
         self.field = field
         self.tree = tree
+        self.sql_generators = {
+            "intrange": FilterTree.intrange_filter,
+            "containment": FilterTree.containment_filter,
+            "containment_multiple": FilterTree.multiple_containment_filter
+        }
         self.rules = self.get_rules(self.tree)
 
     def is_rule(self, obj):
         """Check for bottoming out the recursion in `get_rules`"""
-        if '_rule_type' in obj:
-            if obj['_rule_type'] not in ['intrange', 'containment', 'containment_multiple']:
-                return False
-            else:
-                return True
-        else:
-            return False
+        if '_rule_type' in obj and obj['_rule_type'] in self.sql_generators:
+            return True
+        return False
 
     def get_rules(self, obj, current_path=[]):
         """Recursively crawl a dict looking for filtering rules"""
@@ -53,16 +53,13 @@ class FilterTree:
         rule_specs = []
         for rule in self.rules:
             # If not a properly registered rule type
-            if '_rule_type' not in rule[1]:
+            if not self.is_rule(rule[1]):
                 pass
             rule_type = rule[1]['_rule_type']
+            sql_tuple = self.sql_generators[rule_type](rule[0], rule[1])
+            if sql_tuple is not None:
+                rule_specs.append(sql_tuple)
 
-            if rule_type == 'intrange':
-                rule_specs.append(intrange_filter(rule[0], rule[1]))
-            if rule_type == 'containment':
-                rule_specs.append(containment_filter(rule[0], rule[1]))
-            if rule_type == 'containment_multiple':
-                rule_specs.append(multiple_containment_filter(rule[0], rule[1]))
         rule_strings = [rule[0] for rule in rule_specs]
         # flatten the rule_paths
         rule_paths_first = [rule[1] for rule in rule_specs]
@@ -70,6 +67,74 @@ class FilterTree:
                       for item in sublist]
         outcome = (' AND '.join(rule_strings), tuple(rule_paths))
         return outcome
+
+    # Filters
+    @classmethod
+    def containment_filter(cls, path, range_rule):
+        """Filter for objects that contain the specified value at some location"""
+        template = reconstruct_object(path[1:])
+        has_containment = 'contains' in range_rule
+        abstract_contains_str = path[0] + " @> %s"
+
+        if has_containment:
+            all_contained = range_rule.get('contains')
+
+        contains_params = []
+        json_path = [json.dumps(x) for x in path[1:]]
+        for contained in all_contained:
+            interpolants = tuple(json_path + [json.dumps(contained)])
+            contains_params.append(template % interpolants)
+
+        contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
+
+        return ('(' + contains_str + ')', contains_params)
+
+    @classmethod
+    def multiple_containment_filter(cls, path, range_rule):
+        """Filter for objects that contain the specified value in any of the objects in a given list"""
+        template = reconstruct_object_multiple(path[1:])
+        has_containment = 'contains' in range_rule
+        abstract_contains_str = path[0] + " @> %s"
+
+        if has_containment:
+            all_contained = range_rule.get('contains')
+
+        contains_params = []
+        json_path = [json.dumps(x) for x in path[1:]]
+        for contained in all_contained:
+            interpolants = tuple(json_path + [json.dumps(contained)])
+            contains_params.append(template % interpolants)
+
+        contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
+
+        return ('(' + contains_str + ')', contains_params)
+
+    @classmethod
+    def intrange_filter(cls, path, range_rule):
+        """Filter for numbers that match boundaries provided by a rule"""
+        travInt = "(" + traversal_string(path) + ")::int"
+        has_min = 'min' in range_rule and range_rule['min'] is not None
+        has_max = 'max' in range_rule and range_rule['max'] is not None
+
+        if has_min:
+            minimum = range_rule['min']
+            more_than = ("{traversal_int} >= %s"
+                         .format(traversal_int=travInt))
+
+        if has_max:
+            maximum = range_rule['max']
+            less_than = ("{traversal_int} <= %s"
+                         .format(traversal_int=travInt))
+
+        if not has_min and not has_max:
+            return None
+        if has_min and not has_max:
+            return ('(' + more_than + ')', path[1:] + [minimum])
+        elif has_max and not has_min:
+            return ('(' + less_than + ')', path[1:] + [maximum])
+        elif has_max and has_min:
+            min_and_max = '(' + less_than + ' AND ' + more_than + ')'
+            return (min_and_max, path[1:] + [maximum] + path[1:] + [minimum])
 
 
 # Utility functions
@@ -104,74 +169,6 @@ def reconstruct_object_multiple(path):
         #  This function differs from the singular reconstruction in that the final object
         #  gets wrapped in a list (when length is 2, there should be a key and a value left)
         return '{{%s: {recons}}}'.format(recons=reconstruct_object_multiple(path[1:]))
-
-
-# Filters
-def containment_filter(path, range_rule):
-    """Filter for objects that contain the specified value at some location"""
-    template = reconstruct_object(path[1:])
-    has_containment = 'contains' in range_rule
-    abstract_contains_str = path[0] + " @> %s"
-
-    if has_containment:
-        all_contained = range_rule.get('contains')
-
-    contains_params = []
-    json_path = [json.dumps(x) for x in path[1:]]
-    for contained in all_contained:
-        interpolants = tuple(json_path + [json.dumps(contained)])
-        contains_params.append(template % interpolants)
-
-    contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
-
-    return ('(' + contains_str + ')', contains_params)
-
-
-def multiple_containment_filter(path, range_rule):
-    """Filter for objects that contain the specified value in any of the objects in a given list"""
-    template = reconstruct_object_multiple(path[1:])
-    has_containment = 'contains' in range_rule
-    abstract_contains_str = path[0] + " @> %s"
-
-    if has_containment:
-        all_contained = range_rule.get('contains')
-
-    contains_params = []
-    json_path = [json.dumps(x) for x in path[1:]]
-    for contained in all_contained:
-        interpolants = tuple(json_path + [json.dumps(contained)])
-        contains_params.append(template % interpolants)
-
-    contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
-
-    return ('(' + contains_str + ')', contains_params)
-
-
-def intrange_filter(path, range_rule):
-    """Filter for numbers that match boundaries provided by a rule"""
-    travInt = "(" + traversal_string(path) + ")::int"
-    has_min = 'min' in range_rule and range_rule['min'] is not None
-    has_max = 'max' in range_rule and range_rule['max'] is not None
-
-    if has_min:
-        minimum = range_rule['min']
-        more_than = ("{traversal_int} >= %s"
-                     .format(traversal_int=travInt))
-
-    if has_max:
-        maximum = range_rule['max']
-        less_than = ("{traversal_int} <= %s"
-                     .format(traversal_int=travInt))
-
-    if not has_min and not has_max:
-        return ('', [])
-    if has_min and not has_max:
-        return ('(' + more_than + ')', path[1:] + [minimum])
-    elif has_max and not has_min:
-        return ('(' + less_than + ')', path[1:] + [maximum])
-    elif has_max and has_min:
-        min_and_max = '(' + less_than + ' AND ' + more_than + ')'
-        return (min_and_max, path[1:] + [maximum] + path[1:] + [minimum])
 
 
 class DriverLookup(Lookup):
