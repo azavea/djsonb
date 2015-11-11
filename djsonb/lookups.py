@@ -112,7 +112,7 @@ class FilterTree:
     @classmethod
     def intrange_filter(cls, path, range_rule):
         """Filter for numbers that match boundaries provided by a rule"""
-        travInt = "(" + traversal_string(path) + ")::int"
+        travInt = "(" + extract_value_at_path(path) + ")::int"
         has_min = 'min' in range_rule and range_rule['min'] is not None
         has_max = 'max' in range_rule and range_rule['max'] is not None
 
@@ -120,7 +120,6 @@ class FilterTree:
             minimum = range_rule['min']
             more_than = ("{traversal_int} >= %s"
                          .format(traversal_int=travInt))
-
         if has_max:
             maximum = range_rule['max']
             less_than = ("{traversal_int} <= %s"
@@ -129,21 +128,37 @@ class FilterTree:
         if not has_min and not has_max:
             return None
         if has_min and not has_max:
-            return ('(' + more_than + ')', path[1:] + [minimum])
+            sql_template = '(' + more_than + ')'
+            return (sql_template, path[1:] + [minimum])
         elif has_max and not has_min:
-            return ('(' + less_than + ')', path[1:] + [maximum])
+            sql_template = '(' + less_than + ')'
+            return (sql_template, path[1:] + [maximum])
         elif has_max and has_min:
             min_and_max = '(' + less_than + ' AND ' + more_than + ')'
             return (min_and_max, path[1:] + [maximum] + path[1:] + [minimum])
 
 
 # Utility functions
-def traversal_string(path):
-    """Construct traversal instructions for Postgres from a list of nodes
-    like: '%s->%S->%s->>%s' for {a: {b: {c: value } } }
+def extract_value_at_path(path):
+    return operator_at_traversal_path(path, '->>')
+
+
+# N.B. This only returns useful query snippets if the parent path
+# exists. That is, if you try to query "a"->"b"?"c" but your objects don't have a
+# "b" key, you will always get zero rows back, whereas if they do have a "b" key, then
+# you will get true if it contains "c" and false otherwise.
+def contains_key_at_path(path):
+    return operator_at_traversal_path(path, '?')
+
+
+def operator_at_traversal_path(path, op):
+    """Construct traversal instructions for Postgres from a list of nodes; apply op as last step
+    like: '%s->%S->%s->>%s' for path={a: {b: {c: value } } }, op='->>'
+
+    Don't use this unless extract_value_at_path and contains_key_at_path don't work for you
     """
     fmt_strs = [path[0]] + ['%s' for leaf in path[1:]]
-    traversal = '->'.join(fmt_strs[:-1]) + '->>%s'
+    traversal = '->'.join(fmt_strs[:-1]) + '{op}%s'.format(op=op)
     return traversal
 
 
