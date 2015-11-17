@@ -6,9 +6,9 @@ from django.test import TestCase
 from .models import JsonBModel
 
 from djsonb.lookups import (FilterTree,
-                            traversal_string,
-                            containment_filter,
-                            intrange_filter)
+                            extract_value_at_path,
+                            contains_key_at_path)
+
 
 class JsonBFilterTests(TestCase):
     def setUp(self):
@@ -27,8 +27,11 @@ class JsonBFilterTests(TestCase):
         self.distraction = {'alpha': {'beta': {'gamma': {'delta': self.mock_int_rule}, 'distraction': []}}}
         self.distraction_tree = FilterTree(self.distraction, 'data')
 
-    def test_traversal_string_creation(self):
-        self.assertEqual(traversal_string(['a', 'b', 'c']), u"a->%s->>%s")
+    def test_value_extraction_generation(self):
+        self.assertEqual(extract_value_at_path(['a', 'b', 'c']), u"a->%s->>%s")
+
+    def test_key_containment_generation(self):
+        self.assertEqual(contains_key_at_path(['a', 'b', 'c']), u"a->%s?%s")
 
     def test_intrange_rules(self):
         self.assertEqual(self.two_rule_tree.rules, [(['data', 'testing'], self.mock_int_rule)])
@@ -51,10 +54,9 @@ class JsonBFilterTests(TestCase):
                           ('{"a": {"b": {"c": "test1"}}}', '{"a": {"b": {"c": "a thing"}}}')))
 
     def test_containment_output(self):
-        self.assertEqual(containment_filter(['a', 'b'], self.mock_contains_rule),
+        self.assertEqual(FilterTree.containment_filter(['a', 'b'], self.mock_contains_rule),
                          ('(a @> %s OR a @> %s)',
                           ['{"b": "test1"}', '{"b": "a thing"}']))
-
 
     def test_containment_query(self):
         JsonBModel.objects.create(data={'a': {'b': {'c': 1}}})
@@ -141,12 +143,27 @@ class JsonBFilterTests(TestCase):
 
     def test_intrange_filter_missing_numbers(self):
         """Test to ensure that missing min and max doesn't add filters"""
-        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'min': None}),
-                         ('', []))
-        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'min': 1}),
-                         (u'((a->%s->>%s)::int >= %s)', [u'b', u'c', 1]))
-        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'max': 1}),
-                         (u'((a->%s->>%s)::int <= %s)', [u'b', u'c', 1]))
-        self.assertEqual(intrange_filter(['a', 'b', 'c'], {'_rule_type': 'intrange', 'max': 1, 'min': None}),
-                         (u'((a->%s->>%s)::int <= %s)', [u'b', u'c', 1]))
+        self.assertEqual(FilterTree.intrange_filter(['a', 'b', 'c'],
+                         {'_rule_type': 'intrange', 'min': None}),
+                         None)
+        self.assertEqual(FilterTree.intrange_filter(['a', 'b', 'c'],
+                         {'_rule_type': 'intrange', 'min': 1}),
+                         (u'((a->%s->>%s)::int >= %s)',
+                          [u'b', u'c', 1]))
+        self.assertEqual(FilterTree.intrange_filter(['a', 'b', 'c'],
+                         {'_rule_type': 'intrange', 'max': 1}),
+                         (u'((a->%s->>%s)::int <= %s)',
+                          [u'b', u'c', 1]))
+        self.assertEqual(FilterTree.intrange_filter(['a', 'b', 'c'],
+                         {'_rule_type': 'intrange', 'max': 1, 'min': None}),
+                         (u'((a->%s->>%s)::int <= %s)',
+                          [u'b', u'c', 1]))
 
+    def test_exclude_null_filters(self):
+        """Test that filters which return None are excluded from the query string"""
+        int_none_rule = {'_rule_type': 'intrange', 'min': None, 'max': None}
+        other_rule = self.mock_contains_rule
+        jsonb_query = {'should_be': other_rule, 'should_not_be': int_none_rule}
+        ft = FilterTree(jsonb_query, 'data')
+        sql_str, sql_params = ft.sql()
+        self.assertFalse('AND' in sql_str, 'Found "AND" in query string')  # Should only be one
