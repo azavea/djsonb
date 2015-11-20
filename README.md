@@ -20,3 +20,22 @@ container with [`docker-compose`](https://docs.docker.com/compose/):
 $ docker-compose build
 $ docker-compose run test
 ```
+
+## Installation and use
+
+Setting up djsonb is as simple as defining a model that uses one of its fields:
+```python
+from django.db import models
+from djsonb import fields as jsb
+
+class Person(models.Model):
+    first_name = models.CharField(max_length=30)
+    last_name = models.CharField(max_length=30)
+    other_stuff = jsb.JsonBField()
+```
+
+We can then do some neat stuff like:
+```python
+// Find people from Hays, Kansas
+Person.objects.filter(other_stuff__jsonb={'other_stuff': {'home_town': {'State': {'_rule_type': 'containment', 'contains': ['Kansas']}, 'City': {'_rule_type': 'containment', 'contains': ['Hays']}}}})
+```
