@@ -141,6 +141,30 @@ class JsonBFilterTests(TestCase):
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
         self.assertEqual(query2.count(), 2)
 
+    def test_text_similarity_filter(self):
+        JsonBModel.objects.create(data={'a': {'b': {'c': "beagels"}}})
+        JsonBModel.objects.create(data={'a': {'b': {'c': "beegles"}}})
+        filt1 = {'a': {'b': {'c': {'_rule_type': 'containment',
+                                   'pattern': 'a'}}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 1)
+
+    def test_text_similarity_multiple(self):
+        JsonBModel.objects.create(data={'a': {'b': [{'c': "beegels"}, {'c': "beagels"}]}})
+        JsonBModel.objects.create(data={'a': {'b': [{'c': "beegles"}]}})
+        filt1 = {'a': {'b': {'c': {'_rule_type': 'containment_multiple',
+                                   'pattern': 'a'}}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 1)
+
+    def test_tricky_key_similarity_multiple(self):
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegels"}, {'beagels': "beagels"}]}})
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegles", "arg": "zonk"}]}})
+        filt1 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                         'pattern': 'a'}}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 1)
+
     def test_intrange_filter_missing_numbers(self):
         """Test to ensure that missing min and max doesn't add filters"""
         self.assertEqual(FilterTree.intrange_filter(['a', 'b', 'c'],

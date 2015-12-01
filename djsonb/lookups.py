@@ -3,7 +3,6 @@ import json
 
 from django.db.models import Lookup
 
-
 class FilterTree:
     """This class should properly assemble the pieces necessary to write the WHERE clause of
     a postgres query
@@ -60,6 +59,14 @@ class FilterTree:
             if sql_tuple is not None:
                 rule_specs.append(sql_tuple)
 
+            # The check on 'pattern' here ensures that we can apply a pattern
+            #  filter on top of other filters
+            if 'pattern' in rule[1]:
+                if rule[1]['_rule_type'] == 'containment_multiple':
+                    rule_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], True))
+                else:
+                    rule_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], False))
+
         rule_strings = [rule[0] for rule in rule_specs]
         # flatten the rule_paths
         rule_paths_first = [rule[1] for rule in rule_specs]
@@ -70,14 +77,16 @@ class FilterTree:
 
     # Filters
     @classmethod
-    def containment_filter(cls, path, range_rule):
+    def containment_filter(cls, path, rule):
         """Filter for objects that contain the specified value at some location"""
         template = reconstruct_object(path[1:])
-        has_containment = 'contains' in range_rule
+        has_containment = 'contains' in rule
         abstract_contains_str = path[0] + " @> %s"
 
         if has_containment:
-            all_contained = range_rule.get('contains')
+            all_contained = rule.get('contains')
+        else:
+            return None
 
         contains_params = []
         json_path = [json.dumps(x) for x in path[1:]]
@@ -90,14 +99,17 @@ class FilterTree:
         return ('(' + contains_str + ')', contains_params)
 
     @classmethod
-    def multiple_containment_filter(cls, path, range_rule):
-        """Filter for objects that contain the specified value in any of the objects in a given list"""
+    def multiple_containment_filter(cls, path, rule):
+        """Filter for objects that contain the specified value in any of the objects in a
+        given list"""
         template = reconstruct_object_multiple(path[1:])
-        has_containment = 'contains' in range_rule
+        has_containment = 'contains' in rule
         abstract_contains_str = path[0] + " @> %s"
 
         if has_containment:
-            all_contained = range_rule.get('contains')
+            all_contained = rule.get('contains')
+        else:
+            return None
 
         contains_params = []
         json_path = [json.dumps(x) for x in path[1:]]
@@ -110,23 +122,21 @@ class FilterTree:
         return ('(' + contains_str + ')', contains_params)
 
     @classmethod
-    def intrange_filter(cls, path, range_rule):
+    def intrange_filter(cls, path, rule):
         """Filter for numbers that match boundaries provided by a rule"""
-        travInt = "(" + extract_value_at_path(path) + ")::int"
-        has_min = 'min' in range_rule and range_rule['min'] is not None
-        has_max = 'max' in range_rule and range_rule['max'] is not None
+        trav_int = "(" + extract_value_at_path(path) + ")::int"
+        has_min = 'min' in rule and rule['min'] is not None
+        has_max = 'max' in rule and rule['max'] is not None
 
         if has_min:
-            minimum = range_rule['min']
+            minimum = rule['min']
             more_than = ("{traversal_int} >= %s"
-                         .format(traversal_int=travInt))
+                         .format(traversal_int=trav_int))
         if has_max:
-            maximum = range_rule['max']
+            maximum = rule['max']
             less_than = ("{traversal_int} <= %s"
-                         .format(traversal_int=travInt))
+                         .format(traversal_int=trav_int))
 
-        if not has_min and not has_max:
-            return None
         if has_min and not has_max:
             sql_template = '(' + more_than + ')'
             return (sql_template, path[1:] + [minimum])
@@ -134,8 +144,35 @@ class FilterTree:
             sql_template = '(' + less_than + ')'
             return (sql_template, path[1:] + [maximum])
         elif has_max and has_min:
-            min_and_max = '(' + less_than + ' AND ' + more_than + ')'
-            return (min_and_max, path[1:] + [maximum] + path[1:] + [minimum])
+            sql_template = '(' + less_than + ' AND ' + more_than + ')'
+            return (sql_template, path[1:] + [maximum] + path[1:] + [minimum])
+        else:
+            return None
+
+    @classmethod
+    def text_similarity_filter(cls, path, rule, path_multiple=False):
+        """Filter for objects that contain members (at the specified addresses)
+        which match against a provided pattern
+        If path_multiple is true, this function also seeks out"""
+        has_similarity = 'pattern' in rule and rule['pattern'] is not None
+        if not has_similarity:
+            return None
+
+        if path_multiple:
+            traversed_text = "(" + extract_value_at_path(path[:-1]) + ")"
+        else:
+            traversed_text = "(" + extract_value_at_path(path) + ")"
+
+        sql_template = ("{traversed_text}::text ~* %s"
+                        .format(traversed_text=traversed_text))
+
+        if path_multiple:
+            return (sql_template, path[1:-1] + ['{key}": "([^"]*?{val}.*?)"'
+                                                .format(key=path[-1],
+                                                        val=rule['pattern'])])
+        else:
+            return (sql_template, path[1:] + [rule['pattern']])
+
 
 
 # Utility functions
