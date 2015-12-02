@@ -165,6 +165,18 @@ class JsonBFilterTests(TestCase):
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
 
+    def test_injection_similarity_multiple(self):
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': ".*"}, {'beagels': "beagels"}]}})
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegles", "arg": "zonk"}]}})
+        filt1 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                         'pattern': '.*'}}}}
+        bad_filter = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                         'pattern': '(a+)+'}}}}
+        # ReDos should cause a failure here:
+        JsonBModel.objects.filter(data__jsonb=bad_filter)
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 1)
+
     def test_intrange_filter_missing_numbers(self):
         """Test to ensure that missing min and max doesn't add filters"""
         self.assertEqual(FilterTree.intrange_filter(['a', 'b', 'c'],

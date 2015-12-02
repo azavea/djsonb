@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import json
+import re
 
 from django.db.models import Lookup
 
@@ -169,7 +170,7 @@ class FilterTree:
         if path_multiple:
             return (sql_template, path[1:-1] + ['{key}": "([^"]*?{val}.*?)"'
                                                 .format(key=path[-1],
-                                                        val=rule['pattern'])])
+                                                        val=re.escape(rule['pattern']))])
         else:
             return (sql_template, path[1:] + [rule['pattern']])
 
