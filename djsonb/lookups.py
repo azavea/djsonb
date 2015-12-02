@@ -4,6 +4,7 @@ import re
 
 from django.db.models import Lookup
 
+
 class FilterTree:
     """This class should properly assemble the pieces necessary to write the WHERE clause of
     a postgres query
@@ -60,8 +61,7 @@ class FilterTree:
             if sql_tuple is not None:
                 rule_specs.append(sql_tuple)
 
-            # The check on 'pattern' here ensures that we can apply a pattern
-            #  filter on top of other filters
+            # The check on 'pattern' here allows us to apply a pattern filter on top of others
             if 'pattern' in rule[1]:
                 if rule[1]['_rule_type'] == 'containment_multiple':
                     rule_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], True))
@@ -125,18 +125,18 @@ class FilterTree:
     @classmethod
     def intrange_filter(cls, path, rule):
         """Filter for numbers that match boundaries provided by a rule"""
-        trav_int = "(" + extract_value_at_path(path) + ")::int"
+        traversed_int = "(" + extract_value_at_path(path) + ")::int"
         has_min = 'min' in rule and rule['min'] is not None
         has_max = 'max' in rule and rule['max'] is not None
 
         if has_min:
             minimum = rule['min']
             more_than = ("{traversal_int} >= %s"
-                         .format(traversal_int=trav_int))
+                         .format(traversal_int=traversed_int))
         if has_max:
             maximum = rule['max']
             less_than = ("{traversal_int} <= %s"
-                         .format(traversal_int=trav_int))
+                         .format(traversal_int=traversed_int))
 
         if has_min and not has_max:
             sql_template = '(' + more_than + ')'
@@ -154,7 +154,11 @@ class FilterTree:
     def text_similarity_filter(cls, path, rule, path_multiple=False):
         """Filter for objects that contain members (at the specified addresses)
         which match against a provided pattern
-        If path_multiple is true, this function also seeks out"""
+        If path_multiple is true, this function generates a regular expression to parse
+        the json array of objects. This regular expression works by finding the key and
+        attempting to match a string against that key's associated value. This unfortunate
+        use of regex is necessitated by Postgres' inability to iterate in a WHERE clause
+        and the requirement that we deal with records that have multiple related objects."""
         has_similarity = 'pattern' in rule and rule['pattern'] is not None
         if not has_similarity:
             return None
@@ -169,11 +173,10 @@ class FilterTree:
 
         if path_multiple:
             return (sql_template, path[1:-1] + ['{key}": "([^"]*?{val}.*?)"'
-                                                .format(key=path[-1],
+                                                .format(key=re.escape(path[-1]),
                                                         val=re.escape(rule['pattern']))])
         else:
-            return (sql_template, path[1:] + [rule['pattern']])
-
+            return (sql_template, path[1:] + [re.escape(rule['pattern'])])
 
 
 # Utility functions

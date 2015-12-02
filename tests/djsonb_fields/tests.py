@@ -165,14 +165,17 @@ class JsonBFilterTests(TestCase):
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
 
-    def test_injection_similarity_multiple(self):
+    def test_regex_injection_on_similarity_filter(self):
         JsonBModel.objects.create(data={'a': {'b': [{'beagels': ".*"}, {'beagels': "beagels"}]}})
-        JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegles", "arg": "zonk"}]}})
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': """aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                                                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                                                   aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+                                                                   aaaaaaaa""", "arg": "zonk"}]}})
         filt1 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
                                          'pattern': '.*'}}}}
-        bad_filter = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
-                                         'pattern': '(a+)+'}}}}
-        # ReDos should cause a failure here:
+        bad_filter = {'a': {'b': {'(a+)+': {'_rule_type': 'containment_multiple',
+                                            'pattern': '(a+)+'}}}}
+        # ReDos here should cause tests to crash if injection works
         JsonBModel.objects.filter(data__jsonb=bad_filter)
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
