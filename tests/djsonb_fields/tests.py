@@ -176,8 +176,9 @@ class JsonBFilterTests(TestCase):
         bad_filter = {'a': {'b': {'(a+)+': {'_rule_type': 'containment_multiple',
                                             'pattern': '(a+)+'}}}}
         # ReDos here should cause tests to crash if injection works
-        JsonBModel.objects.filter(data__jsonb=bad_filter)
+        query0 = JsonBModel.objects.filter(data__jsonb=bad_filter)
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query0.count(), 0)
         self.assertEqual(query1.count(), 1)
 
     def test_intrange_filter_missing_numbers(self):
