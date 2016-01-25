@@ -165,6 +165,52 @@ class JsonBFilterTests(TestCase):
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
 
+    def test_use_of_ORs_in_containment_pattern_match(self):
+        JsonBModel.objects.create(data={'a': {'b': {'beagels': "beegels"},
+                                              'c': {'rhymes': 'seeds'}}})
+        JsonBModel.objects.create(data={'a': {'b': {'beagels': "bgels"},
+                                              'c': {'rhymes': 'steeds'}}})
+
+
+        filt1 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                         'pattern': 'bee'}},
+                       'c': {'rhymes': {'_rule_type': 'containment',
+                                        'pattern': 'bee'}}}}
+
+        filt2 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                         'pattern': 'eed'}},
+                       'c': {'rhymes': {'_rule_type': 'containment',
+                                        'pattern': 'eed'}}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        query2 = JsonBModel.objects.filter(data__jsonb=filt2)
+        self.assertEqual(query1.count(), 1)
+        self.assertEqual(query2.count(), 2)
+
+    def test_use_of_ORs_in_multiple_containment_pattern_match(self):
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegels"},
+                                                    {'beagels': "beagels"}],
+                                              'c': [{'favoritefood': 'seeds'},
+                                                    {'favoritefood': 'salt'}]}})
+        JsonBModel.objects.create(data={'a': {'b': [{'beagels': "bgels"},
+                                                    {'beagels': "bgels"}],
+                                              'c': [{'favoritefood': 'waffles'},
+                                                    {'favoritefood': 'bees'}]}})
+
+
+        filt1 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                        'pattern': 'bee'}},
+                      'c': {'favoritefood': {'_rule_type': 'containment_multiple',
+                                             'pattern': 'bee'}}}}
+
+        filt2 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                        'pattern': 'waff'}},
+                      'c': {'favoritefood': {'_rule_type': 'containment_multiple',
+                                             'pattern': 'waff'}}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        query2 = JsonBModel.objects.filter(data__jsonb=filt2)
+        self.assertEqual(query1.count(), 2)
+        self.assertEqual(query2.count(), 1)
+
     def test_regex_injection_on_similarity_filter(self):
         JsonBModel.objects.create(data={'a': {'b': [{'beagels': ".*"}, {'beagels': "beagels"}]}})
         JsonBModel.objects.create(data={'a': {'b': [{'beagels': """aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -207,3 +253,4 @@ class JsonBFilterTests(TestCase):
         ft = FilterTree(jsonb_query, 'data')
         sql_str, sql_params = ft.sql()
         self.assertFalse('AND' in sql_str, 'Found "AND" in query string')  # Should only be one
+

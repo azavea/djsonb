@@ -52,6 +52,8 @@ class FilterTree:
         of parameters for compiling that template
         """
         rule_specs = []
+        # we have to separate this out to ensure 'OR' is used between pattern checks
+        pattern_specs = []
         for rule in self.rules:
             # If not a properly registered rule type
             if not self.is_rule(rule[1]):
@@ -64,16 +66,27 @@ class FilterTree:
             # The check on 'pattern' here allows us to apply a pattern filter on top of others
             if 'pattern' in rule[1]:
                 if rule[1]['_rule_type'] == 'containment_multiple':
-                    rule_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], True))
+                    sql_tuple = FilterTree.text_similarity_filter(rule[0], rule[1], True)
+                    pattern_specs.append(sql_tuple)
                 else:
-                    rule_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], False))
+                    sql_tuple = pattern_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], False))
+                    pattern_specs.append(sql_tuple)
 
-        rule_strings = [rule[0] for rule in rule_specs]
+
+        rule_strings = [' AND '.join([rule[0] for rule in rule_specs]),
+                        ' OR '.join([rule[0] for rule in pattern_specs if rule is not None])]
+        if rule_strings[0] != '' and rule_strings[1] != '':
+            rule_strings = ' AND ('.join(rule_strings) + ')'
+        else:
+            rule_strings = ''.join(rule_strings)
+
         # flatten the rule_paths
-        rule_paths_first = [rule[1] for rule in rule_specs]
+        rule_paths_first = ([rule[1] for rule in rule_specs] +
+                            [rule[1] for rule in pattern_specs if rule is not None])
         rule_paths = [item for sublist in rule_paths_first
                       for item in sublist]
-        outcome = (' AND '.join(rule_strings), tuple(rule_paths))
+
+        outcome = (rule_strings, tuple(rule_paths))
         return outcome
 
     # Filters
