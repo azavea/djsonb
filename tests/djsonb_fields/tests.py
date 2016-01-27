@@ -24,7 +24,8 @@ class JsonBFilterTests(TestCase):
         self.containment_object = {'a': {'b': {'c': self.mock_contains_rule}}}
         self.containment_tree = FilterTree(self.containment_object, 'data')
 
-        self.distraction = {'alpha': {'beta': {'gamma': {'delta': self.mock_int_rule}, 'distraction': []}}}
+        self.distraction = {'alpha': {'beta': {'gamma': {'delta': self.mock_int_rule},
+                                               'distraction': []}}}
         self.distraction_tree = FilterTree(self.distraction, 'data')
 
     def test_value_extraction_generation(self):
@@ -44,14 +45,16 @@ class JsonBFilterTests(TestCase):
 
     def test_intrange_sql(self):
         self.assertEqual(self.two_rule_tree.sql(),
-                         (u'((data->>%s)::int <= %s AND (data->>%s)::int >= %s)', ('testing', 5, 'testing', 1)))
+                         (u'(((data->>%s)::int <= %s AND (data->>%s)::int >= %s))',
+                         ('testing', 5, 'testing', 1)))
         self.assertEqual(self.distraction_tree.sql(),
-                         ('((data->%s->%s->%s->>%s)::int <= %s AND (data->%s->%s->%s->>%s)::int >= %s)', ('alpha', 'beta', 'gamma', 'delta', 5, 'alpha', 'beta', 'gamma', 'delta', 1)))
+                         ('(((data->%s->%s->%s->>%s)::int <= %s AND (data->%s->%s->%s->>%s)::int >= %s))',
+                         ('alpha', 'beta', 'gamma', 'delta', 5, 'alpha', 'beta', 'gamma', 'delta', 1)))
 
     def test_containment_sql(self):
         self.assertEqual(self.containment_tree.sql(),
-                         ("(data @> %s OR data @> %s)",
-                          ('{"a": {"b": {"c": "test1"}}}', '{"a": {"b": {"c": "a thing"}}}')))
+                         ("((data @> %s OR data @> %s))",
+                         ('{"a": {"b": {"c": "test1"}}}', '{"a": {"b": {"c": "a thing"}}}')))
 
     def test_containment_output(self):
         self.assertEqual(FilterTree.containment_filter(['a', 'b'], self.mock_contains_rule),
@@ -165,6 +168,29 @@ class JsonBFilterTests(TestCase):
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
 
+    def test_containment_use_with_pattern_match(self):
+        JsonBModel.objects.create(data={'a': {'b': {'beagels': "beegels"},
+                                              'c': {'rhymes': 'seeds'}}})
+        JsonBModel.objects.create(data={'a': {'b': {'beagels': "bgels"},
+                                              'c': {'rhymes': 'seeds'}}})
+
+        filt = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                        'pattern': 'gel'}},
+                      'c': {'rhymes': {'_rule_type': 'containment',
+                                       'contains': ['seeds']}}}}
+
+        query = JsonBModel.objects.filter(data__jsonb=filt)
+        self.assertEqual(query.count(), 2)
+
+    def test_things(self):
+        JsonBModel.objects.create(data={"Object Details": {"Main cause": "Mistake"}})
+
+        filt = {'Object Details': {'Main cause': {'_rule_type': 'containment',
+                                                    'contains': ['Mistake']}}}
+
+        query = JsonBModel.objects.filter(data__jsonb=filt)
+        self.assertEqual(query.count(), 1)
+
     def test_use_of_ORs_in_containment_pattern_match(self):
         JsonBModel.objects.create(data={'a': {'b': {'beagels': "beegels"},
                                               'c': {'rhymes': 'seeds'}}})
@@ -254,3 +280,22 @@ class JsonBFilterTests(TestCase):
         sql_str, sql_params = ft.sql()
         self.assertFalse('AND' in sql_str, 'Found "AND" in query string')  # Should only be one
 
+    def test_large_search(self):
+        """Test using a large json object and multiple conditions"""
+        JsonBModel.objects.create(data={"Person":[{"License number":"","Name":"Rodolfo","Driver error":"Bad turning","Age":"35","Vehicle":"abc-123","Involvment":"Driver","Sex":"Male","Address":"","Injury":"Not injured","Hospital":"","_localId":"936a572d-2504-44f8-88cc-fa3c4afe82d1"},{"License number":"","Name":"Manos","Age":"45","Vehicle":"abc-123","Involvment":"Driver","Seat belt/helmet":"Not worn","Sex":"Male","Address":"","Injury":"Fatal","Hospital":"Santa Elena","_localId":"2f7163f0-af2d-48b1-a8fb-9dc0ba60dfc0"}],"Object Details":{"Description":"","Surface condition":"Dry","Main cause":"Mistake","_localId":"abc-123","Traffic control":"None","Severity":"Fatal","Collision type":"Right angle","Surface type":"Concrete"},"Vehicle":[{"Maneuver":"Reversing","Vehicle type":"Truck (Artic)","Insurance details":"","Chassis number":"","Make":"Fuso","Defect":"None","Damage":"Right","_localId":"923123","Model":"","Plate number":"","Engine number":""},{"Maneuver":"Going ahead","Direction":"North","Vehicle type":"Motorcycle","Insurance details":"","Chassis number":"","Make":"Honda","Defect":"None","Damage":"Multiple","_localId":"10583eea-864d-408d-99ff-8e57f8d687a8","Model":"","Plate number":"","Engine number":""}]})
+        JsonBModel.objects.create(data={"Person":[],"Object Details":{"Traffic control":"Centerline","Description":"V1 was running along Kabulawan, Lagonglong and accidentally hit a stockpile placed in the roadway of deep excavation done by SMART contractor having poor devices. As a result, the driver sustained minor injury and damages to said V1.","Num passenger casualties":"0","Surface condition":"Wet","Num driver casualties":"1","Main cause":"Road defect","Num pedestrian casualties":"0","_localId":"092b80d0-a8fa-44db-857c-d36d7159447f","Surface type":"Concrete","Severity":"Injury","Collision type":"Hit object in road","Num vehicles":"1"},"Vehicle":[]})
+        JsonBModel.objects.create(data={"Person":[],"Object Details":{"Traffic control":"None","Description":"The motorolla was traversing the road heading north direction towards Aparri with passenger when a tricycle heading the same direction bumped the rear portion of the motorolla causing damages on both vehicles and injury on the motorcycle driver and passen","Num passenger casualties":"1","Surface condition":"Wet","Num driver casualties":"1","Main cause":"Mistake","Num pedestrian casualties":"0","_localId":"5e8e09fb-185b-4433-8952-94ee4f07422d","Surface type":"Concrete","Severity":"Injury","Collision type":"Rear end","Num vehicles":"2"},"Vehicle":[]})
+
+        # With a simple containment check
+        filt1 = {"Object Details":{"Main cause":{"_rule_type":"containment","contains":["Mistake"]}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 2)
+
+        # With a containment check and a pattern check
+        filt2 = {"Object Details":{"Main cause":{"_rule_type":"containment","contains":["Mistake"]},"Severity":{"pattern":"inj","_rule_type":"containment"},"Collision type":{"pattern":"inj","_rule_type":"containment"}}}
+        query2 = JsonBModel.objects.filter(data__jsonb=filt2)
+        self.assertEqual(query2.count(), 1)
+
+        filt3 = {"Object Details":{"Main cause":{"pattern":"fat","_rule_type":"containment"},"Severity":{"pattern":"fat","_rule_type":"containment"},"Collision type":{"pattern":"fat","_rule_type":"containment"}}}
+        query3 = JsonBModel.objects.filter(data__jsonb=filt3)
+        self.assertEqual(query3.count(), 1)

@@ -69,20 +69,20 @@ class FilterTree:
                     sql_tuple = FilterTree.text_similarity_filter(rule[0], rule[1], True)
                     pattern_specs.append(sql_tuple)
                 else:
-                    sql_tuple = pattern_specs.append(FilterTree.text_similarity_filter(rule[0], rule[1], False))
+                    sql_tuple = FilterTree.text_similarity_filter(rule[0], rule[1], False)
                     pattern_specs.append(sql_tuple)
 
 
         rule_strings = [' AND '.join([rule[0] for rule in rule_specs]),
-                        ' OR '.join([rule[0] for rule in pattern_specs if rule is not None])]
+                        ' OR '.join([rule[0] for rule in pattern_specs])]
         if rule_strings[0] != '' and rule_strings[1] != '':
-            rule_strings = ' AND ('.join(rule_strings) + ')'
+            rule_strings = '(' + (' AND ('.join(rule_strings)) + ')' + ')'
         else:
-            rule_strings = ''.join(rule_strings)
+            rule_strings = '(' + ''.join(rule_strings) + ')'
 
         # flatten the rule_paths
         rule_paths_first = ([rule[1] for rule in rule_specs] +
-                            [rule[1] for rule in pattern_specs if rule is not None])
+                            [rule[1] for rule in pattern_specs])
         rule_paths = [item for sublist in rule_paths_first
                       for item in sublist]
 
