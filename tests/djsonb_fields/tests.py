@@ -280,6 +280,20 @@ class JsonBFilterTests(TestCase):
         sql_str, sql_params = ft.sql()
         self.assertFalse('AND' in sql_str, 'Found "AND" in query string')  # Should only be one
 
+    def test_empty_filters(self):
+        """Test that fully-empty filters work and return all instances"""
+        JsonBModel.objects.create(data={'a': {'b': {'c': "zog", 'd': "zog"}}})
+        JsonBModel.objects.create(data={'a': {'b': {'c': "zog", 'd': 9000}}})
+        JsonBModel.objects.create(data={'a': {'b': [{'c': "zog"}, {'c': "dog"}]}})
+
+        empty_intrange = {'a': {'b': {'c': {'_rule_type': 'intrange', 'min': None, 'max': None}}}}
+        empty_containment = {'a': {'b': {'c': {'_rule_type': 'containment', 'contains': []}}}}
+        empty_mult_containment = {'a': {'b': {'c': {'_rule_type': 'containment_multiple',
+                                                    'contains': []}}}}
+        self.assertEqual(JsonBModel.objects.filter(data__jsonb=empty_intrange).count(), 3)
+        self.assertEqual(JsonBModel.objects.filter(data__jsonb=empty_containment).count(), 3)
+        self.assertEqual(JsonBModel.objects.filter(data__jsonb=empty_mult_containment).count(), 3)
+
     def test_large_search(self):
         """Test using a large json object and multiple conditions"""
         JsonBModel.objects.create(data={"Person":[{"License number":"","Name":"Rodolfo","Driver error":"Bad turning","Age":"35","Vehicle":"abc-123","Involvment":"Driver","Sex":"Male","Address":"","Injury":"Not injured","Hospital":"","_localId":"936a572d-2504-44f8-88cc-fa3c4afe82d1"},{"License number":"","Name":"Manos","Age":"45","Vehicle":"abc-123","Involvment":"Driver","Seat belt/helmet":"Not worn","Sex":"Male","Address":"","Injury":"Fatal","Hospital":"Santa Elena","_localId":"2f7163f0-af2d-48b1-a8fb-9dc0ba60dfc0"}],"Object Details":{"Description":"","Surface condition":"Dry","Main cause":"Mistake","_localId":"abc-123","Traffic control":"None","Severity":"Fatal","Collision type":"Right angle","Surface type":"Concrete"},"Vehicle":[{"Maneuver":"Reversing","Vehicle type":"Truck (Artic)","Insurance details":"","Chassis number":"","Make":"Fuso","Defect":"None","Damage":"Right","_localId":"923123","Model":"","Plate number":"","Engine number":""},{"Maneuver":"Going ahead","Direction":"North","Vehicle type":"Motorcycle","Insurance details":"","Chassis number":"","Make":"Honda","Defect":"None","Damage":"Multiple","_localId":"10583eea-864d-408d-99ff-8e57f8d687a8","Model":"","Plate number":"","Engine number":""}]})
