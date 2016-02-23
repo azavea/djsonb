@@ -77,8 +77,10 @@ class FilterTree:
                         ' OR '.join([rule[0] for rule in pattern_specs])]
         if rule_strings[0] != '' and rule_strings[1] != '':
             rule_strings = '(' + (' AND ('.join(rule_strings)) + ')' + ')'
-        else:
+        elif rule_strings[0] != '' or rule_strings[1] != '':
             rule_strings = '(' + ''.join(rule_strings) + ')'
+        else:
+            rule_strings = ''
 
         # flatten the rule_paths
         rule_paths_first = ([rule[1] for rule in rule_specs] +
@@ -110,7 +112,10 @@ class FilterTree:
 
         contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
 
-        return ('(' + contains_str + ')', contains_params)
+        if contains_str != '':
+            return ('(' + contains_str + ')', contains_params)
+        else:
+            return None
 
     @classmethod
     def multiple_containment_filter(cls, path, rule):
@@ -133,7 +138,10 @@ class FilterTree:
 
         contains_str = ' OR '.join([abstract_contains_str] * len(all_contained))
 
-        return ('(' + contains_str + ')', contains_params)
+        if contains_str != '':
+            return ('(' + contains_str + ')', contains_params)
+        else:
+            return None
 
     @classmethod
     def intrange_filter(cls, path, rule):
