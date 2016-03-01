@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import re
+import shlex
 
 from django.db.models import Lookup
 
@@ -65,13 +66,13 @@ class FilterTree:
 
             # The check on 'pattern' here allows us to apply a pattern filter on top of others
             if 'pattern' in rule[1]:
-                if rule[1]['_rule_type'] == 'containment_multiple':
-                    sql_tuple = FilterTree.text_similarity_filter(rule[0], rule[1], True)
+                # Don't filter as an exact match on the text entered; match per word.
+                for pattern in shlex.split(rule[1]['pattern']):
+                    if rule[1]['_rule_type'] == 'containment_multiple':
+                        sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, True)
+                    else:
+                        sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, False)
                     pattern_specs.append(sql_tuple)
-                else:
-                    sql_tuple = FilterTree.text_similarity_filter(rule[0], rule[1], False)
-                    pattern_specs.append(sql_tuple)
-
 
         rule_strings = [' AND '.join([rule[0] for rule in rule_specs]),
                         ' OR '.join([rule[0] for rule in pattern_specs])]
@@ -172,7 +173,7 @@ class FilterTree:
             return None
 
     @classmethod
-    def text_similarity_filter(cls, path, rule, path_multiple=False):
+    def text_similarity_filter(cls, path, pattern, path_multiple=False):
         """Filter for objects that contain members (at the specified addresses)
         which match against a provided pattern
         If path_multiple is true, this function generates a regular expression to parse
@@ -180,7 +181,7 @@ class FilterTree:
         attempting to match a string against that key's associated value. This unfortunate
         use of regex is necessitated by Postgres' inability to iterate in a WHERE clause
         and the requirement that we deal with records that have multiple related objects."""
-        has_similarity = 'pattern' in rule and rule['pattern'] is not None
+        has_similarity = pattern is not None
         if not has_similarity:
             return None
 
@@ -195,9 +196,9 @@ class FilterTree:
         if path_multiple:
             return (sql_template, path[1:-1] + ['{key}": "([^"]*?{val}.*?)"'
                                                 .format(key=re.escape(path[-1]),
-                                                        val=re.escape(rule['pattern']))])
+                                                        val=re.escape(pattern))])
         else:
-            return (sql_template, path[1:] + [re.escape(rule['pattern'])])
+            return (sql_template, path[1:] + [re.escape(pattern)])
 
 
 # Utility functions
