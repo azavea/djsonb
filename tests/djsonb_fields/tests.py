@@ -152,6 +152,15 @@ class JsonBFilterTests(TestCase):
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         self.assertEqual(query1.count(), 1)
 
+    def test_text_similarity_split_spaces(self):
+        """Test that similarity patterns are split on spaces before filtering"""
+        JsonBModel.objects.create(data={'a': {'b': {'c': "goose meese"}}})
+        JsonBModel.objects.create(data={'a': {'b': {'c': "moose geese"}}})
+        filt1 = {'a': {'b': {'c': {'_rule_type': 'containment',
+                                   'pattern': 'moose goose'}}}}
+        query1 = JsonBModel.objects.filter(data__jsonb=filt1)
+        self.assertEqual(query1.count(), 2)
+
     def test_text_similarity_multiple(self):
         JsonBModel.objects.create(data={'a': {'b': [{'c': "beegels"}, {'c': "beagels"}]}})
         JsonBModel.objects.create(data={'a': {'b': [{'c': "beegles"}]}})
