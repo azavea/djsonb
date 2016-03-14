@@ -72,7 +72,7 @@ class FilterTree:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, True)
                     else:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, False)
-                    pattern_specs.append(sql_tuple)
+                    rule_specs.append(sql_tuple)
 
         rule_strings = [' AND '.join([rule[0] for rule in rule_specs]),
                         ' OR '.join([rule[0] for rule in pattern_specs])]

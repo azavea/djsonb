@@ -154,8 +154,8 @@ class JsonBFilterTests(TestCase):
 
     def test_text_similarity_split_spaces(self):
         """Test that similarity patterns are split on spaces before filtering"""
-        JsonBModel.objects.create(data={'a': {'b': {'c': "goose meese"}}})
-        JsonBModel.objects.create(data={'a': {'b': {'c': "moose geese"}}})
+        JsonBModel.objects.create(data={'a': {'b': {'c': "goose meese moose"}}})
+        JsonBModel.objects.create(data={'a': {'b': {'c': "moose geese goose"}}})
         filt1 = {'a': {'b': {'c': {'_rule_type': 'containment',
                                    'pattern': 'moose goose'}}}}
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
@@ -200,7 +200,7 @@ class JsonBFilterTests(TestCase):
         query = JsonBModel.objects.filter(data__jsonb=filt)
         self.assertEqual(query.count(), 1)
 
-    def test_use_of_ORs_in_containment_pattern_match(self):
+    def test_use_of_ANDs_in_containment_pattern_match(self):
         JsonBModel.objects.create(data={'a': {'b': {'beagels': "beegels"},
                                               'c': {'rhymes': 'seeds'}}})
         JsonBModel.objects.create(data={'a': {'b': {'beagels': "bgels"},
@@ -213,15 +213,15 @@ class JsonBFilterTests(TestCase):
                                         'pattern': 'bee'}}}}
 
         filt2 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
-                                         'pattern': 'eed'}},
+                                         'pattern': 'eeg'}},
                        'c': {'rhymes': {'_rule_type': 'containment',
                                         'pattern': 'eed'}}}}
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
-        self.assertEqual(query1.count(), 1)
-        self.assertEqual(query2.count(), 2)
+        self.assertEqual(query1.count(), 0)
+        self.assertEqual(query2.count(), 1)
 
-    def test_use_of_ORs_in_multiple_containment_pattern_match(self):
+    def test_use_of_ANDs_in_multiple_containment_pattern_match(self):
         JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegels"},
                                                     {'beagels': "beagels"}],
                                               'c': [{'favoritefood': 'seeds'},
@@ -238,12 +238,12 @@ class JsonBFilterTests(TestCase):
                                              'pattern': 'bee'}}}}
 
         filt2 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
-                                        'pattern': 'waff'}},
+                                        'pattern': 'bge'}},
                       'c': {'favoritefood': {'_rule_type': 'containment_multiple',
                                              'pattern': 'waff'}}}}
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
-        self.assertEqual(query1.count(), 2)
+        self.assertEqual(query1.count(), 0)
         self.assertEqual(query2.count(), 1)
 
     def test_regex_injection_on_similarity_filter(self):
@@ -315,10 +315,10 @@ class JsonBFilterTests(TestCase):
         self.assertEqual(query1.count(), 2)
 
         # With a containment check and a pattern check
-        filt2 = {"Object Details":{"Main cause":{"_rule_type":"containment","contains":["Mistake"]},"Severity":{"pattern":"inj","_rule_type":"containment"},"Collision type":{"pattern":"inj","_rule_type":"containment"}}}
+        filt2 = {"Object Details":{"Main cause":{"_rule_type":"containment","contains":["Mistake"]},"Severity":{"pattern":"inj","_rule_type":"containment"}}}
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
         self.assertEqual(query2.count(), 1)
 
-        filt3 = {"Object Details":{"Main cause":{"pattern":"fat","_rule_type":"containment"},"Severity":{"pattern":"fat","_rule_type":"containment"},"Collision type":{"pattern":"fat","_rule_type":"containment"}}}
+        filt3 = {"Object Details":{"Severity":{"pattern":"fat","_rule_type":"containment"}}}
         query3 = JsonBModel.objects.filter(data__jsonb=filt3)
         self.assertEqual(query3.count(), 1)
