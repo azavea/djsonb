@@ -75,32 +75,27 @@ class FilterTree:
                     else:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, False)
                     # add to the list of rules generated for this pattern (one per field)
-                    got_pattern = patterns.get(pattern) or []
-                    got_pattern.append(sql_tuple)
-                    patterns[pattern] = got_pattern
+                    patterns.setdefault(pattern, []).append(sql_tuple)
 
-        rule_strings = [' AND '.join([rule[0] for rule in rule_specs])]
+        rule_string = ' AND '.join([rule[0] for rule in rule_specs])
 
         pattern_rules = patterns.values()
         pattern_strings = []
 
+        # check if any of the fields for this string pattern match
         for rule_list in pattern_rules:
             pattern_strings.append(' OR '.join([rule[0] for rule in rule_list]))
             pattern_specs += rule_list
 
-        if pattern_strings:
-            pattern_string = '(' + ') AND ('.join(pattern_strings) + ')'
-        else:
-            pattern_string = ''
+        # check that record has a match for all of the string patterns in some field
+        pattern_string = '(' + ') AND ('.join(pattern_strings) + ')' if pattern_strings else ''
 
-        rule_strings.append(pattern_string)
-
-        if rule_strings[0] != '' and rule_strings[1] != '':
-            rule_strings = '(' + (' AND ('.join(rule_strings)) + ')' + ')'
-        elif rule_strings[0] != '' or rule_strings[1] != '':
-            rule_strings = '(' + ''.join(rule_strings) + ')'
+        if rule_string != '' and pattern_string != '':
+            filter_string = '(' + (' AND ('.join([rule_string, pattern_string])) + ')' + ')'
+        elif rule_string != '' or pattern_string != '':
+            filter_string = '(' + ''.join([rule_string, pattern_string]) + ')'
         else:
-            rule_strings = ''
+            filter_string = ''
 
         # flatten the rule_paths
         rule_paths_first = ([rule[1] for rule in rule_specs] +
@@ -108,7 +103,7 @@ class FilterTree:
         rule_paths = [item for sublist in rule_paths_first
                       for item in sublist]
 
-        outcome = (rule_strings, tuple(rule_paths))
+        outcome = (filter_string, tuple(rule_paths))
         return outcome
 
     # Filters
