@@ -53,8 +53,10 @@ class FilterTree:
         of parameters for compiling that template
         """
         rule_specs = []
-        # we have to separate this out to ensure 'OR' is used between pattern checks
+
+        patterns = {}
         pattern_specs = []
+
         for rule in self.rules:
             # If not a properly registered rule type
             if not self.is_rule(rule[1]):
@@ -72,10 +74,27 @@ class FilterTree:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, True)
                     else:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, False)
-                    rule_specs.append(sql_tuple)
+                    # add to the list of rules generated for this pattern (one per field)
+                    got_pattern = patterns.get(pattern) or []
+                    got_pattern.append(sql_tuple)
+                    patterns[pattern] = got_pattern
 
-        rule_strings = [' AND '.join([rule[0] for rule in rule_specs]),
-                        ' OR '.join([rule[0] for rule in pattern_specs])]
+        rule_strings = [' AND '.join([rule[0] for rule in rule_specs])]
+
+        pattern_rules = patterns.values()
+        pattern_strings = []
+
+        for rule_list in pattern_rules:
+            pattern_strings.append(' OR '.join([rule[0] for rule in rule_list]))
+            pattern_specs += rule_list
+
+        if pattern_strings:
+            pattern_string = '(' + ') AND ('.join(pattern_strings) + ')'
+        else:
+            pattern_string = ''
+
+        rule_strings.append(pattern_string)
+
         if rule_strings[0] != '' and rule_strings[1] != '':
             rule_strings = '(' + (' AND ('.join(rule_strings)) + ')' + ')'
         elif rule_strings[0] != '' or rule_strings[1] != '':

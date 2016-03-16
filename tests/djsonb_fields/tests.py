@@ -216,10 +216,46 @@ class JsonBFilterTests(TestCase):
                                          'pattern': 'eeg'}},
                        'c': {'rhymes': {'_rule_type': 'containment',
                                         'pattern': 'eed'}}}}
+
+        # filt3 should be functionally equivalent to filt2;
+        # each space-separated term appears in at least one searched field on the same record
+        filt3 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                         'pattern': 'eeg eed'}},
+                       'c': {'rhymes': {'_rule_type': 'containment',
+                                        'pattern': 'eeg eed'}}}}
+
+        # filt4 should return nothing, because although each space-separated term has a match,
+        # those matches occur on different records
+        filt4 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                         'pattern': 'bge seeds'}},
+                       'c': {'rhymes': {'_rule_type': 'containment',
+                                        'pattern': 'bge seeds'}}}}
+
+        # same as filt4, but this will match because the term matches are on the same record
+        filt5 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                         'pattern': 'bge steeds'}},
+                       'c': {'rhymes': {'_rule_type': 'containment',
+                                        'pattern': 'bge steeds'}}}}
+
+        # should match on same field
+        filt6 = {'a': {'b': {'beagels': {'_rule_type': 'containment',
+                                         'pattern': 'ste eeds'}},
+                       'c': {'rhymes': {'_rule_type': 'containment',
+                                        'pattern': 'ste eeds'}}}}
+
+
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
-        self.assertEqual(query1.count(), 0)
+        query3 = JsonBModel.objects.filter(data__jsonb=filt3)
+        query4 = JsonBModel.objects.filter(data__jsonb=filt4)
+        query5 = JsonBModel.objects.filter(data__jsonb=filt5)
+        query6 = JsonBModel.objects.filter(data__jsonb=filt6)
+        self.assertEqual(query1.count(), 1)
         self.assertEqual(query2.count(), 1)
+        self.assertEqual(query3.count(), 1)
+        self.assertEqual(query4.count(), 0)
+        self.assertEqual(query5.count(), 1)
+        self.assertEqual(query6.count(), 1)
 
     def test_use_of_ANDs_in_multiple_containment_pattern_match(self):
         JsonBModel.objects.create(data={'a': {'b': [{'beagels': "beegels"},
@@ -241,10 +277,43 @@ class JsonBFilterTests(TestCase):
                                         'pattern': 'bge'}},
                       'c': {'favoritefood': {'_rule_type': 'containment_multiple',
                                              'pattern': 'waff'}}}}
+
+        # should be functionally equivalent to filt2
+        filt3 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                        'pattern': 'bge waff'}},
+                      'c': {'favoritefood': {'_rule_type': 'containment_multiple',
+                                             'pattern': 'bge waff'}}}}
+
+        # refinement of filt1
+        filt4 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                        'pattern': 'bee ffl'}},
+                      'c': {'favoritefood': {'_rule_type': 'containment_multiple',
+                                             'pattern': 'bee ffl'}}}}
+
+        # returns nothing because term matches are on separate records
+        filt5 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                        'pattern': 'bge salt'}},
+                      'c': {'favoritefood': {'_rule_type': 'containment_multiple',
+                                             'pattern': 'bge salt'}}}}
+
+        # like filt5, but returns a match because terms are found on same record
+        filt6 = {'a': {'b': {'beagels': {'_rule_type': 'containment_multiple',
+                                        'pattern': 'beeg salt'}},
+                      'c': {'favoritefood': {'_rule_type': 'containment_multiple',
+                                             'pattern': 'beeg salt'}}}}
+
         query1 = JsonBModel.objects.filter(data__jsonb=filt1)
         query2 = JsonBModel.objects.filter(data__jsonb=filt2)
-        self.assertEqual(query1.count(), 0)
+        query3 = JsonBModel.objects.filter(data__jsonb=filt3)
+        query4 = JsonBModel.objects.filter(data__jsonb=filt4)
+        query5 = JsonBModel.objects.filter(data__jsonb=filt5)
+        query6 = JsonBModel.objects.filter(data__jsonb=filt6)
+        self.assertEqual(query1.count(), 2)
         self.assertEqual(query2.count(), 1)
+        self.assertEqual(query3.count(), 1)
+        self.assertEqual(query4.count(), 1)
+        self.assertEqual(query5.count(), 0)
+        self.assertEqual(query6.count(), 1)
 
     def test_regex_injection_on_similarity_filter(self):
         JsonBModel.objects.create(data={'a': {'b': [{'beagels': ".*"}, {'beagels': "beagels"}]}})
