@@ -53,8 +53,10 @@ class FilterTree:
         of parameters for compiling that template
         """
         rule_specs = []
-        # we have to separate this out to ensure 'OR' is used between pattern checks
+
+        patterns = {}
         pattern_specs = []
+
         for rule in self.rules:
             # If not a properly registered rule type
             if not self.is_rule(rule[1]):
@@ -72,16 +74,28 @@ class FilterTree:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, True)
                     else:
                         sql_tuple = FilterTree.text_similarity_filter(rule[0], pattern, False)
-                    rule_specs.append(sql_tuple)
+                    # add to the list of rules generated for this pattern (one per field)
+                    patterns.setdefault(pattern, []).append(sql_tuple)
 
-        rule_strings = [' AND '.join([rule[0] for rule in rule_specs]),
-                        ' OR '.join([rule[0] for rule in pattern_specs])]
-        if rule_strings[0] != '' and rule_strings[1] != '':
-            rule_strings = '(' + (' AND ('.join(rule_strings)) + ')' + ')'
-        elif rule_strings[0] != '' or rule_strings[1] != '':
-            rule_strings = '(' + ''.join(rule_strings) + ')'
+        rule_string = ' AND '.join([rule[0] for rule in rule_specs])
+
+        pattern_rules = patterns.values()
+        pattern_strings = []
+
+        # check if any of the fields for this string pattern match
+        for rule_list in pattern_rules:
+            pattern_strings.append(' OR '.join([rule[0] for rule in rule_list]))
+            pattern_specs += rule_list
+
+        # check that record has a match for all of the string patterns in some field
+        pattern_string = '(' + ') AND ('.join(pattern_strings) + ')' if pattern_strings else ''
+
+        if rule_string != '' and pattern_string != '':
+            filter_string = '(' + (' AND ('.join([rule_string, pattern_string])) + ')' + ')'
+        elif rule_string != '' or pattern_string != '':
+            filter_string = '(' + ''.join([rule_string, pattern_string]) + ')'
         else:
-            rule_strings = ''
+            filter_string = ''
 
         # flatten the rule_paths
         rule_paths_first = ([rule[1] for rule in rule_specs] +
@@ -89,7 +103,7 @@ class FilterTree:
         rule_paths = [item for sublist in rule_paths_first
                       for item in sublist]
 
-        outcome = (rule_strings, tuple(rule_paths))
+        outcome = (filter_string, tuple(rule_paths))
         return outcome
 
     # Filters
