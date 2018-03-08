@@ -23,7 +23,7 @@ setup(
     packages=find_packages(),
     include_package_data=False,
     install_requires=[
-        "Django >=1.8",
+        "Django <1.12",
         "psycopg2 >=2.6"
     ],
     zip_safe=False,

@@ -14,7 +14,7 @@ from django.db.backends.postgresql_psycopg2.version import get_version
 from django.conf import settings
 from django.utils import six
 
-if django.get_version() >= "1.7":
+if django.VERSION >= (1, 7):
     from django.utils.module_loading import import_string
 else:
     from django.utils.module_loading import import_by_path as import_string
@@ -38,8 +38,12 @@ psycopg2.extras.register_default_json(loads=json.loads)
 # http://schinckel.net/2014/05/24/python,-postgres-and-jsonb/
 psycopg2.extras.register_json(loads=json.loads, oid=3802, array_oid=3807)
 
+if django.VERSION < (1, 8):
+    base_field_class = six.with_metaclass(models.SubfieldBase, models.Field)
+else:
+    base_field_class = models.Field
 
-class JsonField(six.with_metaclass(models.SubfieldBase, models.Field)):
+class JsonField(base_field_class):
     empty_strings_allowed = False
 
     def __init__(self, *args, **kwargs):
@@ -119,7 +123,7 @@ class JsonBField(JsonField):
                 raise TypeError("jhas lookup requires str or int")
         return value
 
-if django.get_version() >= "1.7":
+if django.VERSION >= (1, 7):
     from .lookups import DriverLookup
 
     JsonField.register_lookup(DriverLookup)
